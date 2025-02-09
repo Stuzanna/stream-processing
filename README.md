@@ -236,6 +236,47 @@ SELECT * FROM items_per_cart;
 ```
 Add [items to cart](./flink/confluent-course-examples-and-data/data/add-items-to-cart.sql) and watch the increase from the events. I did this with two sql-clients open, the view on one screen and added one by one on the other. *Remember you need to create the table in the new client as tables are stored in memory here.*
 
+## More complicated example: Enriching a stream from 3 source streams
+
+Rather than have all the item data in the items topic as we have done, what if the data had needed combining to get here. Let's combine three different streams to make our enriched stream.
+
+You'll likely want to run the scripts provided. Swapping out the script in the below command. They're fairly simple creating the tables, inserting data, then finally the interesting part of making the joined view. Note uncommenting the `INSERT INTO` is what will populate the topic if you want to more than just view it.
+
+```bash
+docker compose exec sql-client bash -c "mkdir -p /opt/flink/opt/scripts/"
+SQL_HOST=./confluent-course-examples-and-data/data/enriching-streams/add-split-stream-data.sql
+SQL_CONTAINER=/opt/flink/opt/scripts/target-script.sql
+docker cp $SQL_HOST sql-client:$SQL_CONTAINER
+docker compose exec sql-client /opt/flink/bin/sql-client.sh -f $SQL_CONTAINER
+```
+1. Create these four topics needed on Kafka, the three additional source topics and a sink topic for enriched stream [brands, tax_status, unenriched_items, enriched_items]. Use your preferred method or the Conduktor UI running on [localhost:8080](http:localhost:8080) if you're running the stack
+1. Populate the brand, tax_status and unenriched_items topics with [add-split-stream-data.sql](./flink/confluent-course-examples-and-data/data/enriching-streams/add-split-stream-data.sql)
+1.  Then run [enriched-stream-setup.sql](.flink/confluent-course-examples-and-data/data/enriching-streams/enriched-stream-setup.sql) to create the four tables in Flink
+
+Adding more messages to the topics would cause the view to update. What is more useful perhaps is writing to the topic using `INSERT INTO`. We can then view from the new topic instead.
+
+Note the final view statement has the joins, with a 2 minute (+/-1) for the temporal join so will be waiting to update as we update any values on the join.
+
+```sql
+...
+FROM unenriched_items
+    JOIN brands 
+        ON unenriched_items.brand_id = brands.id
+        AND unenriched_items.proc_time BETWEEN brands.proc_time - INTERVAL '1' MINUTE 
+        AND brands.proc_time + INTERVAL '1' MINUTE
+...
+;
+```
+Note if you run the script multiple times you may end up requesting that job multiple times and run out of resources.
+
+Stop any duplicate jobs with:
+
+```sql
+SHOW JOBS;  -- to see all running jobs and their IDs
+STOP JOB '<job_id>';  -- to stop a specific job
+```
+The job ID can be inspected using Flink Job Manager UI running on [localhost:8081](http://localhost:8081).
+
 ## Data - What each of the data/ files are for
 Ordered by when mentioned in this doc.
 `view-all-items.sql` - Creates a table for all_items, this is shopping cart items used in the exercises.
