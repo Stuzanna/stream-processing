@@ -113,7 +113,7 @@ services:
   
   # Tooling for working with Kafka - Conduktor Console with required Postgres
   conduktor-console:
-    image: conduktor/conduktor-console:1.30.0
+    image: conduktor/conduktor-console:1.31.0
     container_name: conduktor-console
     depends_on:
       - postgresql
@@ -152,7 +152,7 @@ services:
     
   # Monitoring tool from Conduktor
   conduktor-monitoring:
-    image: conduktor/conduktor-console-cortex:1.30.0
+    image: conduktor/conduktor-console-cortex:1.31.0
     container_name: conduktor-monitoring
     environment:
       CDK_CONSOLE-URL: "http://conduktor-console:8080"
