@@ -65,3 +65,54 @@ When building your processing queries you have to explicitly say which timestamp
 ```sql
 ALTER TABLE items ADD proc_time AS PROCTIME();
 ```
+
+## Inserting Values
+Insert values with SQL statements.
+```sql
+INSERT INTO items
+VALUES (
+    1,                                             
+    CAST(19.99 AS DECIMAL(10, 2)),                
+    'Baseball Trading Cards - Collector Edition',  
+    'Premium Ol Slugger baseball trading cards!',  
+    401,                                           
+    778                                           
+);
+```
+Appears on the topic.
+
+Note if this fails on the Kafka side the message is lost, as the INSERT job completed, but Kafka failed, to have retries you need to insert from a streaming table rather than fire and forget one valid command. Examples of streaming tables which will retry:
+
+```sql
+-- One-time but with retries
+INSERT INTO items
+SELECT * FROM source_items -- populated table
+WHERE id = 1;  -- Or any specific condition
+```
+
+You can also source items being from a filesystem table.
+```sql
+-- with the Kafka table, items2 in this case,  already created
+
+-- create source filesystem table
+CREATE TABLE items_from_file (
+  id BIGINT,
+  price DECIMAL(10, 2),
+  name STRING,
+  description STRING,
+  brand_id BIGINT,
+  tax_status_id BIGINT
+) WITH (
+  'connector' = 'filesystem',
+  'path' = '/opt/flink/data/items_data.csv', -- local csv
+  'format' = 'csv',
+  'csv.ignore-parse-errors' = 'true',
+  'csv.allow-comments' = 'true'
+);
+
+-- stream from source to the topic table
+INSERT INTO items
+SELECT *
+  FROM items_from_file;
+```
+A note on failures. You can see the issue for failed jobs in the job manager log list by searching for `FAILED`, or specifically the job exception list as it throws an exception, it's a nice jump to the failure. Note this doesn't throw an **error** as it fails gracefully. Example I had was forgetting to make the topic beforehand.
