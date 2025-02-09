@@ -1,3 +1,5 @@
+# This docker-compose is for local development using Kafka and Flink
+
 services:
   # Kafka Cluster - 3 broker, 1 Zookeeper and a Schema Registry
   zookeeper:
@@ -176,7 +178,7 @@ services:
     command: jobmanager
     volumes:
       - flink_data:/tmp/
-      - ./data:/opt/flink/data
+      - ./confluent-course-examples-and-data/data/:/opt/flink/data
     environment:
       - |
         FLINK_PROPERTIES=
@@ -195,7 +197,7 @@ services:
     command: taskmanager
     volumes:
       - flink_data:/tmp/
-      - ./data:/opt/flink/data
+      - ./confluent-course-examples-and-data/data/:/opt/flink/data
     environment:
       - |
         FLINK_PROPERTIES=
