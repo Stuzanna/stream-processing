@@ -1,12 +1,28 @@
 # stream-processing
 A collection of examples and learning on stream processing. Useful for getting setup locally in no time, introduction to fundamental concepts and reading my provided examples.
 
+- [Flink](#flink)
+- [1. Practical tips for getting started with Flink](#1-practical-tips-for-getting-started-with-flink)
+  - [Accessing the SQL Client](#accessing-the-sql-client)
+  - [Kafka Tables](#kafka-tables)
+  - [Inserting Values](#inserting-values)
+  - [Running SQL scripts](#running-sql-scripts)
+- [2. Examples working with data](#2-examples-working-with-data)
+  - [A simple view](#a-simple-view)
+  - [Querying with order](#querying-with-order)
+    - [EXAMPLE: View for watching the (COUNT of) items added to cart](#example-view-for-watching-the-count-of-items-added-to-cart)
+  - [Data - What each of the data/ files are for](#data---what-each-of-the-data-files-are-for)
+
+
 # Flink
 Exploration of Apache Flink, different sections will include guides on how-to as well as references to stream processing concepts including:
-1. Get started stack with Flink
-1. Templated or simple guide on using Flink with Kafka
-1. Examples where I reworked exercises using kSQLdb to be done in Flink, from Confluent's course [Introduction to Designing Events and Event Streams](https://developer.confluent.io/courses/event-design/intro/)
+1. Practical tips for getting started with Flink, including using this local dev stack to familiarise yourself
+1. Examples performing typical stream processing operations and working with the data.
+   1. Inspired by the ksqlDB exercises from the great Confluent's course [Introduction to Designing Events and Event Streams](https://developer.confluent.io/courses/event-design/intro/). I recommend following the course and recreating in Flink using the examples I've provided earlier.
 
+# 1. Practical tips for getting started with Flink
+
+Run the getting started stack included in the `docker-compose.yaml` to run a local Flink, Kafka and Kafka tooling(Conduktor).
 
 ## Accessing the SQL Client
 For running Flink SQL commands there is a sql-client service in the docker-compose.
@@ -131,8 +147,9 @@ SQL_CONTAINER=/opt/flink/opt/scripts/add-records.sql
 docker cp $SQL_HOST sql-client:$SQL_CONTAINER
 docker compose exec sql-client /opt/flink/bin/sql-client.sh -f $SQL_CONTAINER
 ```
+# 2. Examples working with data
 
-## Working with the data
+## A simple view
 The `view-all-items.sql` script is for more than just adding data to the Kafka table (and hence underlying topic). It's a bit more useful:
 * Create table for all_items
 * Create a view from the table
@@ -140,9 +157,88 @@ The `view-all-items.sql` script is for more than just adding data to the Kafka t
   * *As we're running in a script, non-interactive mode, you need to explicitly set the result mode. This isn't required when working in the SQL client (SQL terminal) directly as it sets it's own mode there*
 * Views the view
 
-Use the block above on [running SQL scripts](#running-sql-scripts) to run the script.
-*Note this is blank if there's no data on the topic as there's nothing to view.*
+Use the block above on [running SQL scripts](#running-sql-scripts) to run the script.  
+Note this is blank if there's no data on the topic as there's nothing to view. Try [inserting values](#inserting-values).
 
-## Data
+## Querying with order
+Note in the current examples they don't have any **time attribute** fields (different from timestamps, special watermark based), so have to use `proc_time` or windowing (`window_time`) when querying using **order**. 
+
+Here I added `PROCTIME()` so I could use it to window, I don't have event time in these events.
+
+This metadata column can be added to the table, or added in a view by including in the `SELECT`.
+
+```sql
+ALTER TABLE items ADD proc_time AS PROCTIME();
+```
+
+```sql
+SELECT *
+FROM TABLE(
+    TUMBLE(
+        TABLE all_items, 
+        DESCRIPTOR(proc_time), 
+        INTERVAL '10' MINUTES
+    )
+)
+ORDER by window_time, id;
+```
+See [view-ordered-windowed.sql](./flink/confluent-course-examples-and-data/data/view-ordered-window.sql) for this with view created too.
+
+### EXAMPLE: View for watching the (COUNT of) items added to cart
+In this example a topic exists sending item added to cart events. It contrasts to ksqlDB which was being used in the examples on the course.
+The config is for the local stack you can spin-up here, just create the topic.
+
+Make a table for the topic `item_added`.
+
+```sql
+-- ksqlDB
+CREATE STREAM item_added (
+  cart_id BIGINT key,
+  item_id BIGINT
+) WITH (
+  KAFKA_TOPIC = 'item_added',
+  VALUE_FORMAT = 'AVRO',
+  PARTITIONS = 6
+);
+
+-- flink
+CREATE TABLE item_added (
+  cart_id BIGINT,
+  item_id BIGINT
+) WITH (
+  'connector' = 'kafka',
+  'topic' = 'item_added',
+  'properties.bootstrap.servers' = 'kafka1:9092',
+  'format' = 'avro-confluent',
+  'avro-confluent.url' = 'http://schema-registry:8081',
+  'key.format' = 'avro-confluent',
+  'key.fields' = 'cart_id',
+  'key.avro-confluent.url' = 'http://schema-registry:8081',
+  'value.format' = 'avro-confluent',
+  'value.fields-include' = 'EXCEPT_KEY',
+  'properties.group.id' = 'flink_table_item_added', -- CG name needed for Kafka
+  'properties.auto.offset.reset' = 'earliest' -- needed for Kafka
+);
+
+-- Now watch the item count per cart 
+CREATE VIEW items_per_cart AS
+SELECT cart_id, COUNT(*) as items_in_cart
+  FROM TABLE(
+    TUMBLE(
+        TABLE item_added, 
+        DESCRIPTOR(proc_time), 
+        INTERVAL '5' SECONDS
+    )
+)
+GROUP BY cart_id;
+
+SELECT * FROM items_per_cart;
+```
+Add [items to cart](./flink/confluent-course-examples-and-data/data/add-items-to-cart.sql) and watch the increase from the events. I did this with two sql-clients open, the view on one screen and added one by one on the other. *Remember you need to create the table in the new client as tables are stored in memory here.*
+
+## Data - What each of the data/ files are for
+Ordered by when mentioned in this doc.
 `view-all-items.sql` - Creates a table for all_items, this is shopping cart items used in the exercises.
 `add-records.sql` - Example to Add more records to a table.
+`view-ordered-window.sql` - Example of view with `ORDER BY`.
+`add-items-to-cart.sql` - Adding items to cart event used in worked example.
