@@ -17,6 +17,7 @@ docker compose exec -it sql-client bash # for terminal
 
 docker compose run sql-client # standalone
 ```
+For running scripts see [Running SQL Scripts](#running-sql-scripts).
 
 ## Kafka Tables
 This is the relational table behaviour side of the Kafka topic, the stream table duality concept. Creating a table that models the data within the Kafka topic.
@@ -90,9 +91,9 @@ SELECT * FROM source_items -- populated table
 WHERE id = 1;  -- Or any specific condition
 ```
 
-You can also source items being from a filesystem table.
+You can also source items being from a filesystem table. Note this will include the header, I believe there are functions in the Java, Scala and Python libraries to ignore but not in the [connector config](https://nightlies.apache.org/flink/flink-docs-release-1.16/docs/connectors/table/formats/csv/).
 ```sql
--- with the Kafka table, items2 in this case,  already created
+-- with the Kafka table already created (items in this example) 
 
 -- create source filesystem table
 CREATE TABLE items_from_file (
@@ -116,3 +117,32 @@ SELECT *
   FROM items_from_file;
 ```
 A note on failures. You can see the issue for failed jobs in the job manager log list by searching for `FAILED`, or specifically the job exception list as it throws an exception, it's a nice jump to the failure. Note this doesn't throw an **error** as it fails gracefully. Example I had was forgetting to make the topic beforehand.
+
+## Running SQL scripts
+You're likely to want to make things more repeatable, more scriptable or make a mistake/encounter an error and need to look back at commands. Running SQL scripts is useful here.  
+**Note tables are kept in memory** unless persisted e.g. to Hive, then you need to start your SQL script with table creation if the container has been restarted.
+[Flink doc examples](https://nightlies.apache.org/flink/flink-docs-release-1.13/docs/dev/table/sqlclient/#initialize-session-using-sql-files).
+
+The below is how I found copying scripts into the container and running them to work nicely, change the environment variable `SQL_HOST`, to match your path as needed. I used `add-records.sql` to add any new records to a table.
+```bash
+docker compose exec sql-client bash -c "mkdir -p /opt/flink/opt/scripts/"
+SQL_HOST=./confluent-course-examples-and-data/data/add-records.sql
+SQL_CONTAINER=/opt/flink/opt/scripts/add-records.sql
+docker cp $SQL_HOST sql-client:$SQL_CONTAINER
+docker compose exec sql-client /opt/flink/bin/sql-client.sh -f $SQL_CONTAINER
+```
+
+## Working with the data
+The `view-all-items.sql` script is for more than just adding data to the Kafka table (and hence underlying topic). It's a bit more useful:
+* Create table for all_items
+* Create a view from the table
+* Set execution mode as this is non-interactive mode.
+  * *As we're running in a script, non-interactive mode, you need to explicitly set the result mode. This isn't required when working in the SQL client (SQL terminal) directly as it sets it's own mode there*
+* Views the view
+
+Use the block above on [running SQL scripts](#running-sql-scripts) to run the script.
+*Note this is blank if there's no data on the topic as there's nothing to view.*
+
+## Data
+`view-all-items.sql` - Creates a table for all_items, this is shopping cart items used in the exercises.
+`add-records.sql` - Example to Add more records to a table.
