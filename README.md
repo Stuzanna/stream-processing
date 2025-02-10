@@ -277,6 +277,40 @@ STOP JOB '<job_id>';  -- to stop a specific job
 ```
 The job ID can be inspected using Flink Job Manager UI running on [localhost:8081](http://localhost:8081).
 
+## More complicated example: Building state from deltas
+Example of multi-event streams. Will build a shopping cart state from deltas of adding or removing items from cart, i.e. if I add two of an item, and remove one of the item the cart state is one item.
+
+We'll
+1. Create item added stream
+1. Create item removed stream
+1. Add items to the streams
+1. Setup a continuous job to merge the streams and enrich with if the item was added, or removed
+1. Create a view to see the live result
+
+Creating the item added stream - create the topics `item_added`, `item_removed`, `merged_cart_actions`.
+Create the tables and insert mock data using [add-remote-items-cart.sql](./flink/confluent-course-examples-and-data/data/building-state-from-deltas/add-remove-items-cart.sql).
+
+```bash
+docker compose exec sql-client bash -c "mkdir -p /opt/flink/opt/scripts/"
+SQL_HOST=./confluent-course-examples-and-data/data/building-state-from-deltas/add-remove-items-cart.sql
+SQL_CONTAINER=/opt/flink/opt/scripts/target.sql
+docker cp $SQL_HOST sql-client:$SQL_CONTAINER
+docker compose exec sql-client /opt/flink/bin/sql-client.sh -f $SQL_CONTAINER
+```
+
+With data in the two source topics, let's setup a continuous job to merge the streams by getting all records from each source topic, and conditionally enriching them with `ADD` or `REMOVE` depending on which topic they came from.
+[merged-cart.sql](./flink/confluent-course-examples-and-data/data/building-state-from-deltas/merged-cart.sql).
+You should see the enriched messages from both source topics on the merged topic such as in the below screenshot from [Conduktor](https://conduktor.io)
+
+![merged cart actions messages on topic](./flink/img/merged_cart_actions_topic.png)
+
+You can also see this running Flink job visually in the Flink Job Manager UI running on [localhost:8081](http://localhost:8081).
+
+![merged cart actions job](./flink/img/merged_cart_actions_sink.png)
+
+Lastly let's see this live state of the cart. 
+To get the final result you'll have to start a sql client in your terminal (`docker compose exec -it sql-client bash -c "bin/sql-client.sh"`).   Then sequentially paste and run each of the queries in [shopping-cart-state.sql](./flink/confluent-course-examples-and-data/data/building-state-from-deltas/shopping-cart-state.sql).
+
 ## Data - What each of the data/ files are for
 Ordered by when mentioned in this doc.
 `view-all-items.sql` - Creates a table for all_items, this is shopping cart items used in the exercises.
