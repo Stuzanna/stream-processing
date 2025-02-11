@@ -1,3 +1,8 @@
+SET 'sql-client.execution.statement-set-enabled' = 'true';
+SET 'pipeline.name' = 'Shopping Cart State Pipeline';
+SET 'sql-client.execution.result-mode' = 'TABLEAU'; -- Ignore if manual copy pasting, used as part of scripting
+-- BEGIN STATEMENT SET;
+
 CREATE TABLE item_added (
   cart_id BIGINT,
   item_id BIGINT,
@@ -13,7 +18,7 @@ CREATE TABLE item_added (
   'key.avro-confluent.url' = 'http://schema-registry:8081',
   'value.format' = 'avro-confluent',
   'value.fields-include' = 'EXCEPT_KEY',
-    'properties.group.id' = 'flink_table_item_added', -- CG name needed for Kafka
+  'properties.group.id' = 'flink_table_item_added', -- CG name needed for Kafka
   'properties.auto.offset.reset' = 'earliest' -- needed for Kafka
 );
 
@@ -56,22 +61,23 @@ CREATE TABLE merged_cart_actions_sink (
     'properties.auto.offset.reset' = 'earliest' -- needed for Kafka
 );
 
-CREATE VIEW shopping_cart_state AS 
-SELECT 
-    cart_id,
-    item_id,
-    COALESCE(SUM(quantity), 0) as quantity
-FROM (
-    SELECT cart_id, item_id, 1 as quantity
-    FROM item_added
-    
-    UNION ALL
-    
-    SELECT cart_id, item_id, -1 as quantity
-    FROM item_removed
-) combined
-GROUP BY cart_id, item_id
-HAVING COALESCE(SUM(quantity), 0) > 0
-;
+CREATE TEMPORARY VIEW shopping_cart_state AS (
+  SELECT 
+      cart_id,
+      item_id,
+      COALESCE(SUM(quantity), 0) as quantity
+  FROM (
+      SELECT cart_id, item_id, 1 as quantity
+      FROM item_added
+      
+      UNION ALL
+      
+      SELECT cart_id, item_id, -1 as quantity
+      FROM item_removed
+  ) combined
+  GROUP BY cart_id, item_id
+  HAVING COALESCE(SUM(quantity), 0) > 0
+);
 
 SELECT * FROM shopping_cart_state;
+-- END;
