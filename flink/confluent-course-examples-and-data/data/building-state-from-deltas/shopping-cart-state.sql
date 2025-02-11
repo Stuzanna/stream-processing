@@ -61,7 +61,7 @@ CREATE TABLE merged_cart_actions_sink (
     'properties.auto.offset.reset' = 'earliest' -- needed for Kafka
 );
 
-CREATE TEMPORARY VIEW shopping_cart_state AS (
+CREATE VIEW shopping_cart_state AS (
   SELECT 
       cart_id,
       item_id,

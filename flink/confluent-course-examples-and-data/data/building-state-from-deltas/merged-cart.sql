@@ -1,6 +1,7 @@
 -- kafka sink table
 -- materialized view to continuously push updates
 -- first two tables are from previous step
+SET 'pipeline.name' = 'Merged Cart Pipeline';
 
 CREATE TABLE item_added (
   cart_id BIGINT,
