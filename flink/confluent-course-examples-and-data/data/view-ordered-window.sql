@@ -7,4 +7,4 @@ FROM TABLE(
         INTERVAL '10' MINUTES
     )
 )
-ORDER by window_time, id; -- Note adding DESC here seems to think its a field
+ORDER by window_time, id;
