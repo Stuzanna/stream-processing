@@ -1,5 +1,6 @@
 # stream-processing
 A collection of examples and learning on stream processing. Useful for getting setup locally in no time, introduction to fundamental concepts and reading my provided examples.
+At time of writing this is primarily using [Apache Flink](https://flink.apache.org/).
 
 - [Flink](#flink)
 - [1. Practical tips for getting started with Flink](#1-practical-tips-for-getting-started-with-flink)
@@ -11,14 +12,17 @@ A collection of examples and learning on stream processing. Useful for getting s
   - [A simple view](#a-simple-view)
   - [Querying with order](#querying-with-order)
     - [EXAMPLE: View for watching the (COUNT of) items added to cart](#example-view-for-watching-the-count-of-items-added-to-cart)
-  - [Data - What each of the data/ files are for](#data---what-each-of-the-data-files-are-for)
+  - [Enriching a stream from 3 source streams](#enriching-a-stream-from-3-source-streams)
+  - [Building state from deltas](#building-state-from-deltas)
+  - [Conclusion](#conclusion)
+  - [Reference Data - What each of the data/ files are for](#reference-data---what-each-of-the-data-files-are-for)
 
 
 # Flink
 Exploration of Apache Flink, different sections will include guides on how-to as well as references to stream processing concepts including:
 1. Practical tips for getting started with Flink, including using this local dev stack to familiarise yourself
 1. Examples performing typical stream processing operations and working with the data.
-   1. Inspired by the ksqlDB exercises from the great Confluent's course [Introduction to Designing Events and Event Streams](https://developer.confluent.io/courses/event-design/intro/). I recommend following the course and recreating in Flink using the examples I've provided earlier.
+   1. Inspired by the ksqlDB exercises from the great Confluent's course [Introduction to Designing Events and Event Streams](https://developer.confluent.io/courses/event-design/intro/). I recommend following the course and recreating the exercises in Flink as I have done here, you can use my examples I've provided earlier.
 
 # 1. Practical tips for getting started with Flink
 
@@ -136,7 +140,7 @@ A note on failures. You can see the issue for failed jobs in the job manager log
 
 ## Running SQL scripts
 You're likely to want to make things more repeatable, more scriptable or make a mistake/encounter an error and need to look back at commands. Running SQL scripts is useful here.  
-**Note tables are kept in memory** unless persisted e.g. to Hive, then you need to start your SQL script with table creation if the container has been restarted.
+**Note tables are kept in memory** unless persisted, all tables, views etc. are lost when the session ends. As a result you'll want to start your SQL script with table creations. In production you'd use a permanent catalog like Hive.
 [Flink doc examples](https://nightlies.apache.org/flink/flink-docs-release-1.13/docs/dev/table/sqlclient/#initialize-session-using-sql-files).
 
 The below is how I found copying scripts into the container and running them to work nicely, change the environment variable `SQL_HOST`, to match your path as needed. I used `add-records.sql` to add any new records to a table.
@@ -236,7 +240,7 @@ SELECT * FROM items_per_cart;
 ```
 Add [items to cart](./flink/confluent-course-examples-and-data/data/add-items-to-cart.sql) and watch the increase from the events. I did this with two sql-clients open, the view on one screen and added one by one on the other. *Remember you need to create the table in the new client as tables are stored in memory here.*
 
-## More complicated example: Enriching a stream from 3 source streams
+## Enriching a stream from 3 source streams
 
 Rather than have all the item data in the items topic as we have done, what if the data had needed combining to get here. Let's combine three different streams to make our enriched stream.
 
@@ -277,7 +281,7 @@ STOP JOB '<job_id>';  -- to stop a specific job
 ```
 The job ID can be inspected using Flink Job Manager UI running on [localhost:8081](http://localhost:8081).
 
-## More complicated example: Building state from deltas
+## Building state from deltas
 Example of multi-event streams. Will build a shopping cart state from deltas of adding or removing items from cart, i.e. if I add two of an item, and remove one of the item the cart state is one item.
 
 We'll
@@ -309,11 +313,31 @@ You can also see this running Flink job visually in the Flink Job Manager UI run
 ![merged cart actions job](./flink/img/merged_cart_actions_sink.png)
 
 Lastly let's see this live state of the cart. 
-To get the final result you'll have to start a sql client in your terminal (`docker compose exec -it sql-client bash -c "bin/sql-client.sh"`).   Then sequentially paste and run each of the queries in [shopping-cart-state.sql](./flink/confluent-course-examples-and-data/data/building-state-from-deltas/shopping-cart-state.sql).
 
-## Data - What each of the data/ files are for
+If you run the script in one go using the method described so far, you will get the changelog view.  
+This is because we can't use the default SQL client *interactive mode*, you'll get an error telling you as such, instead use the table style `TABLEAU` when running a script, this shows the change like in CDC rather than the end result.
+
+![tableau view](./flink/img/tableau-view.png)
+
+To get the final result nicely displayed you can start a sql client in your terminal (`docker compose exec -it sql-client bash -c "bin/sql-client.sh"`). Then sequentially paste and run each of the queries in [shopping-cart-state.sql](./flink/confluent-course-examples-and-data/data/building-state-from-deltas/shopping-cart-state.sql).
+
+![interactive mode view](./flink/img/result-table-table.png)
+
+## Conclusion
+We've gone through some practical tips of getting started working with Flink locally, running SQL queries on Kafka and some more advanced examples of stream processing.  
+Hopefully this gives you an overview of some typical stream processing operations and how you can explore this for yourself, thanks for reading.
+
+
+## Reference Data - What each of the data/ files are for
 Ordered by when mentioned in this doc.
 `view-all-items.sql` - Creates a table for all_items, this is shopping cart items used in the exercises.
 `add-records.sql` - Example to Add more records to a table.
 `view-ordered-window.sql` - Example of view with `ORDER BY`.
 `add-items-to-cart.sql` - Adding items to cart event used in worked example.
+
+`add-split-stream-data.sql` - Add split data to source topics for joining.
+`enriched-stream-setup.sql` - Create a view enriching source topic data by joining on other topics.
+
+`add-remove-items-cart.sql` - Add mock data to topics in prep of joining them.
+`merged-cart.sql` - Job. Enrich messages from topics, based on which topic they are from as added or removed, send to destination topic.
+`shopping-cart-state.sql` - Create the joined view from the joined topic's deltas on source topic.
