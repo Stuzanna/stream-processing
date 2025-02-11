@@ -1,0 +1,228 @@
+# This docker-compose is for local development using Kafka and Flink
+
+services:
+# Flink - SQL client for  easy interactions, job & task managers
+  sql-client:
+    container_name: sql-client
+    build: sql-client/.
+    # command: bin/sql-client.sh
+    command: /bin/bash -c "bin/sql-client.sh; sleep infinity"
+    depends_on:
+      - jobmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        rest.address: jobmanager
+
+  jobmanager:
+    build: sql-client/.
+    ports:
+      - "8081:8081"
+    command: jobmanager
+    volumes:
+      - flink_data:/tmp/
+      - ./confluent-course-examples-and-data/data/:/opt/flink/data
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        state.backend: filesystem
+        state.checkpoints.dir: file:///tmp/flink-checkpoints
+        heartbeat.interval: 1000
+        heartbeat.timeout: 5000
+        rest.flamegraph.enabled: true
+        web.backpressure.refresh-interval: 10000
+
+  taskmanager:
+    build: sql-client/.
+    depends_on:
+      - jobmanager
+    command: taskmanager
+    volumes:
+      - flink_data:/tmp/
+      - ./confluent-course-examples-and-data/data/:/opt/flink/data
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 3
+        state.backend: filesystem
+        state.checkpoints.dir: file:///tmp/flink-checkpoints
+        heartbeat.interval: 1000
+        heartbeat.timeout: 5000
+  # Kafka Cluster - 3 broker, 1 Zookeeper and a Schema Registry
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.8.0
+    hostname: zookeeper
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2801
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: nc -zv 0.0.0.0 2801 || exit 1
+      interval: 5s
+      retries: 25
+  kafka1:
+    hostname: kafka1
+    container_name: kafka1
+    image: confluentinc/cp-kafka:7.8.0
+    ports:
+    - 19092:19092
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2801
+      KAFKA_LISTENERS: INTERNAL://:9092,EXTERNAL_SAME_HOST://:19092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka1:9092,EXTERNAL_SAME_HOST://localhost:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL_SAME_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG4J_LOGGERS: kafka.authorizer.logger=INFO
+      KAFKA_LOG4J_ROOT_LOGLEVEL: WARN
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test: nc -zv kafka1 9092 || exit 1
+      interval: 5s
+      retries: 25
+  kafka2:
+    hostname: kafka2
+    container_name: kafka2
+    image: confluentinc/cp-kafka:7.8.0
+    ports:
+    - 19093:19093
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2801
+      KAFKA_LISTENERS: INTERNAL://:9093,EXTERNAL_SAME_HOST://:19093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka2:9093,EXTERNAL_SAME_HOST://localhost:19093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL_SAME_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG4J_LOGGERS: kafka.authorizer.logger=INFO
+      KAFKA_LOG4J_ROOT_LOGLEVEL: WARN
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test: nc -zv kafka2 9093 || exit 1
+      interval: 5s
+      retries: 25
+  kafka3:
+    image: confluentinc/cp-kafka:7.8.0
+    hostname: kafka3
+    container_name: kafka3
+    ports:
+    - 19094:19094
+    environment:
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2801
+      KAFKA_LISTENERS: INTERNAL://:9094,EXTERNAL_SAME_HOST://:19094
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka3:9094,EXTERNAL_SAME_HOST://localhost:19094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL_SAME_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG4J_LOGGERS: kafka.authorizer.logger=INFO
+      KAFKA_LOG4J_ROOT_LOGLEVEL: WARN
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test: nc -zv kafka3 9094 || exit 1
+      interval: 5s
+      retries: 25
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.8.0
+    hostname: schema-registry
+    container_name: schema-registry
+    ports:
+    - "8085:8081"  # Map container's 8081 to host's 8085
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093,kafka3:9094
+      SCHEMA_REGISTRY_LOG4J_ROOT_LOGLEVEL: WARN
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_KAFKASTORE_TOPIC: _schemas
+      SCHEMA_REGISTRY_SCHEMA_REGISTRY_GROUP_ID: schema-registry
+    volumes:
+    - type: bind
+      source: .
+      target: /clientConfig
+      read_only: true
+    depends_on:
+      kafka1:
+        condition: service_healthy
+    healthcheck:
+      test: nc -zv schema-registry 8081 || exit 1
+      interval: 5s
+      retries: 25
+  
+  # Tooling for working with Kafka - Conduktor Console with required Postgres
+  conduktor-console:
+    image: conduktor/conduktor-console:1.31.0
+    container_name: conduktor-console
+    depends_on:
+      - postgresql
+      - kafka1
+    ports:
+      - "8080:8080"
+    volumes:
+      - conduktor_data:/var/conduktor
+    environment:
+      CDK_DATABASE_URL: "postgresql://conduktor:change_me@postgresql:5432/conduktor-platform"
+      CDK_CLUSTERS_0_ID: "local-kafka"
+      CDK_CLUSTERS_0_NAME: "local-kafka"
+      CDK_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka1:9092"
+      CDK_CLUSTERS_0_SCHEMAREGISTRY_URL: "http://schema-registry:8081"
+      CDK_CLUSTERS_0_ICON: "kafka"
+      CDK_CLUSTERS_0_COLOR: "#6A57C8"
+      CDK_MONITORING_CORTEX-URL: http://conduktor-monitoring:9009/
+      CDK_MONITORING_ALERT-MANAGER-URL: http://conduktor-monitoring:9010/
+      CDK_MONITORING_CALLBACK-URL: http://conduktor-console:8080/monitoring/api/
+      CDK_MONITORING_NOTIFICATIONS-CALLBACK-URL: http://localhost:8080
+
+  postgresql:
+    image: postgres:16
+    hostname: postgresql
+    container_name: postgresql
+    ports:
+      - "5444:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    environment:
+      PGDATA: "/var/lib/postgresql/data"
+      POSTGRES_DB: "conduktor-platform"
+      POSTGRES_USER: "conduktor"
+      POSTGRES_PASSWORD: "change_me"
+      POSTGRES_HOST_AUTH_METHOD: "scram-sha-256"
+    
+  # Monitoring tool from Conduktor
+  conduktor-monitoring:
+    image: conduktor/conduktor-console-cortex:1.31.0
+    container_name: conduktor-monitoring
+    environment:
+      CDK_CONSOLE-URL: "http://conduktor-console:8080"
+
+  # Optional data generator for populating topics
+  # data-generator:
+    # image: stuzanne/kafka-data-generator:0.6
+    # container_name: data-generator
+    # hostname: data-generator
+    # environment:
+    #   # MAX_BATCHES: 
+    #   KAFKA_BOOTSTRAP_SERVERS: "kafka1:9092"
+    #   MESSAGE_DELAY_SECONDS: 2
+    #   # SERIALIZATION:
+    # depends_on:
+    #   - kafka1
+
+
+volumes:
+  pg_data: {}
+  conduktor_data: {}
+  sr-0: {}
+  flink_data: {}

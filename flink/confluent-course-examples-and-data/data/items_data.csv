@@ -1,0 +1,6 @@
+id,price,name,description,brand_id,tax_status_id
+1,19.99,"Baseball Cards","Vintage collection",401,778
+2,29.99,"Football Cards","Rare edition",401,778
+3,15.99,"Basketball Cards","Limited series",401,778
+4,24.99,"Hockey Cards","Special edition",401,778
+5,9.99,"Soccer Cards","International set",401,778
