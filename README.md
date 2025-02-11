@@ -10,11 +10,11 @@ At time of writing this is primarily using [Apache Flink](https://flink.apache.o
   - [Running SQL scripts](#running-sql-scripts)
 - [2. Examples working with data](#2-examples-working-with-data)
   - [A simple view](#a-simple-view)
-  - [Querying with order](#querying-with-order)
-    - [EXAMPLE: View for watching the (COUNT of) items added to cart](#example-view-for-watching-the-count-of-items-added-to-cart)
-  - [Enriching a stream from 3 source streams](#enriching-a-stream-from-3-source-streams)
-  - [Building state from deltas](#building-state-from-deltas)
-  - [Conclusion](#conclusion)
+  - [Example: Querying with order](#example-querying-with-order)
+  - [Example: View for watching the (COUNT of) items added to cart](#example-view-for-watching-the-count-of-items-added-to-cart)
+  - [Example: Enriching a stream from 3 source streams](#example-enriching-a-stream-from-3-source-streams)
+  - [Example: Building state from deltas](#example-building-state-from-deltas)
+- [Conclusion](#conclusion)
   - [Reference Data - What each of the data/ files are for](#reference-data---what-each-of-the-data-files-are-for)
 
 
@@ -164,7 +164,7 @@ The `view-all-items.sql` script is for more than just adding data to the Kafka t
 Use the block above on [running SQL scripts](#running-sql-scripts) to run the script.  
 Note this is blank if there's no data on the topic as there's nothing to view. Try [inserting values](#inserting-values).
 
-## Querying with order
+## Example: Querying with order
 Note in the current examples they don't have any **time attribute** fields (different from timestamps, special watermark based), so have to use `proc_time` or windowing (`window_time`) when querying using **order**. 
 
 Here I added `PROCTIME()` so I could use it to window, I don't have event time in these events.
@@ -188,7 +188,7 @@ ORDER by window_time, id;
 ```
 See [view-ordered-windowed.sql](./flink/confluent-course-examples-and-data/data/view-ordered-window.sql) for this with view created too.
 
-### EXAMPLE: View for watching the (COUNT of) items added to cart
+## Example: View for watching the (COUNT of) items added to cart
 In this example a topic exists sending item added to cart events. It contrasts to ksqlDB which was being used in the examples on the course.
 The config is for the local stack you can spin-up here, just create the topic.
 
@@ -240,7 +240,7 @@ SELECT * FROM items_per_cart;
 ```
 Add [items to cart](./flink/confluent-course-examples-and-data/data/add-items-to-cart.sql) and watch the increase from the events. I did this with two sql-clients open, the view on one screen and added one by one on the other. *Remember you need to create the table in the new client as tables are stored in memory here.*
 
-## Enriching a stream from 3 source streams
+## Example: Enriching a stream from 3 source streams
 
 Rather than have all the item data in the items topic as we have done, what if the data had needed combining to get here. Let's combine three different streams to make our enriched stream.
 
@@ -281,7 +281,7 @@ STOP JOB '<job_id>';  -- to stop a specific job
 ```
 The job ID can be inspected using Flink Job Manager UI running on [localhost:8081](http://localhost:8081).
 
-## Building state from deltas
+## Example: Building state from deltas
 Example of multi-event streams. Will build a shopping cart state from deltas of adding or removing items from cart, i.e. if I add two of an item, and remove one of the item the cart state is one item.
 
 We'll
@@ -323,7 +323,7 @@ To get the final result nicely displayed you can start a sql client in your term
 
 ![interactive mode view](./flink/img/result-table-table.png)
 
-## Conclusion
+# Conclusion
 We've gone through some practical tips of getting started working with Flink locally, running SQL queries on Kafka and some more advanced examples of stream processing.  
 Hopefully this gives you an overview of some typical stream processing operations and how you can explore this for yourself, thanks for reading.
 
