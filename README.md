@@ -329,7 +329,7 @@ Hopefully this gives you an overview of some typical stream processing operation
 
 
 ## Reference Data - What each of the data/ files are for
-Ordered by when mentioned in this doc.
+Ordered by when mentioned in this doc, or otherwise used.
 `view-all-items.sql` - Creates a table for all_items, this is shopping cart items used in the exercises.  
 `add-records.sql` - Example to Add more records to a table.  
 `view-ordered-window.sql` - Example of view with `ORDER BY`.  
@@ -341,3 +341,7 @@ Ordered by when mentioned in this doc.
 `add-remove-items-cart.sql` - Add mock data to topics in prep of joining them.  
 `merged-cart.sql` - Job. Enrich messages from topics, based on which topic they are from as added or removed, send to destination topic.  
 `shopping-cart-state.sql` - Create the joined view from the joined topic's deltas on source topic.  
+
+### event-processing/
+`streaming-analytics-event-time.sql` - Examples using event time.
+`streaming-analytics-proc-time.sql` - Different examples of how you can build a COUNT using processing time.
