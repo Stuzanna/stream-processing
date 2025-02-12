@@ -22,7 +22,7 @@ At time of writing this is primarily using [Apache Flink](https://flink.apache.o
 Exploration of Apache Flink, different sections will include guides on how-to as well as references to stream processing concepts including:
 1. Practical tips for getting started with Flink, including using this local dev stack to familiarise yourself
 1. Examples performing typical stream processing operations and working with the data.
-   1. Inspired by the ksqlDB exercises from the great Confluent's course [Introduction to Designing Events and Event Streams](https://developer.confluent.io/courses/event-design/intro/). I recommend following the course and recreating the exercises in Flink as I have done here, you can use my examples I've provided earlier.
+   1. Inspired by the ksqlDB exercises from the great Confluent's course [Introduction to Designing Events and Event Streams](https://developer.confluent.io/courses/event-design/intro/). I recommend following the course and recreating the exercises in Flink as I have done here, you can use my examples I've provided if you get stuck.
 
 # 1. Practical tips for getting started with Flink
 
@@ -330,14 +330,14 @@ Hopefully this gives you an overview of some typical stream processing operation
 
 ## Reference Data - What each of the data/ files are for
 Ordered by when mentioned in this doc.
-`view-all-items.sql` - Creates a table for all_items, this is shopping cart items used in the exercises.
-`add-records.sql` - Example to Add more records to a table.
-`view-ordered-window.sql` - Example of view with `ORDER BY`.
-`add-items-to-cart.sql` - Adding items to cart event used in worked example.
+`view-all-items.sql` - Creates a table for all_items, this is shopping cart items used in the exercises.  
+`add-records.sql` - Example to Add more records to a table.  
+`view-ordered-window.sql` - Example of view with `ORDER BY`.  
+`add-items-to-cart.sql` - Adding items to cart event used in worked example.  
 
-`add-split-stream-data.sql` - Add split data to source topics for joining.
-`enriched-stream-setup.sql` - Create a view enriching source topic data by joining on other topics.
+`add-split-stream-data.sql` - Add split data to source topics for joining.  
+`enriched-stream-setup.sql` - Create a view enriching source topic data by joining on other topics.  
 
-`add-remove-items-cart.sql` - Add mock data to topics in prep of joining them.
-`merged-cart.sql` - Job. Enrich messages from topics, based on which topic they are from as added or removed, send to destination topic.
-`shopping-cart-state.sql` - Create the joined view from the joined topic's deltas on source topic.
+`add-remove-items-cart.sql` - Add mock data to topics in prep of joining them.  
+`merged-cart.sql` - Job. Enrich messages from topics, based on which topic they are from as added or removed, send to destination topic.  
+`shopping-cart-state.sql` - Create the joined view from the joined topic's deltas on source topic.  
