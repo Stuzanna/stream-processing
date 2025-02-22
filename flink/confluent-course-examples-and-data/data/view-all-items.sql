@@ -33,6 +33,5 @@ SELECT * FROM all_items;
 
 -- View the view
 SET 'sql-client.execution.result-mode' = 'TABLEAU'; -- as we're running in a script, non-interactive mode, need explicit result mode
--- SET sql-client.execution.result-mode = table; 
 
 SELECT * FROM all_items_view;

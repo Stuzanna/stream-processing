@@ -69,11 +69,13 @@ CREATE VIEW shopping_cart_state AS (
   FROM (
       SELECT cart_id, item_id, 1 as quantity
       FROM item_added
+      WHERE cart_id = 1234
       
       UNION ALL
       
       SELECT cart_id, item_id, -1 as quantity
       FROM item_removed
+      WHERE cart_id = 1234
   ) combined
   GROUP BY cart_id, item_id
   HAVING COALESCE(SUM(quantity), 0) > 0
