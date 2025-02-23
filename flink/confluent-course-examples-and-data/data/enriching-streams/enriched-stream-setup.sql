@@ -109,4 +109,4 @@ FROM unenriched_items
 ;
 
 SELECT * FROM continuous_enriched;
-
+--  SELECT * FROM enriched_items;
