@@ -1,6 +1,7 @@
 # stream-processing
-A collection of examples and learning on stream processing. Useful for getting setup locally in no time, introduction to fundamental concepts and reading my provided examples.
-At time of writing this is primarily using [Apache Flink](https://flink.apache.org/).
+A collection of examples and tips for getting started with stream processing using [Apache Kafka](https://kafka.apache.org/) & [Apache Flink](https://flink.apache.org/). This will be useful for those getting setup locally in no time and seeking an introduction to fundamental concepts with some worked examples.
+
+The below section on Flink is to accompany [the Medium article](https://medium.com/@smould1011/query-kafka-using-flink-sql-hands-on-guide-377da793d675). 
 
 - [Flink](#flink)
 - [1. Practical tips for getting started with Flink](#1-practical-tips-for-getting-started-with-flink)
@@ -19,34 +20,43 @@ At time of writing this is primarily using [Apache Flink](https://flink.apache.o
 
 
 # Flink
-Exploration of Apache Flink, different sections will include guides on how-to as well as references to stream processing concepts including:
+The below content details some guides & how-to's as well as references to stream processing concepts including:
 1. Practical tips for getting started with Flink, including using this local dev stack to familiarise yourself
 1. Examples performing typical stream processing operations and working with the data.
-   1. Inspired by the ksqlDB exercises from the great Confluent's course [Introduction to Designing Events and Event Streams](https://developer.confluent.io/courses/event-design/intro/). I recommend following the course and recreating the exercises in Flink as I have done here, you can use my examples I've provided if you get stuck.
+   1. Inspired by the ksqlDB exercises from the great course by Confluent [Introduction to Designing Events and Event Streams](https://developer.confluent.io/courses/event-design/intro/). For further development I recommend following the course and recreating the exercises in Flink as I have done here, you can use my examples I've provided if you get stuck.
 
 # 1. Practical tips for getting started with Flink
 
-Run the getting started stack included in the `docker-compose.yaml` to run a local Flink, Kafka and Kafka tooling(Conduktor).
-
-## Accessing the SQL Client
-For running Flink SQL commands there is a sql-client service in the docker-compose.
+Run the getting started stack included in the `docker-compose.yaml` file to run a local Flink, Kafka and Kafka tooling([Conduktor](https://conduktor.io/)).
 
 ```bash
-docker compose exec -it sql-client bash -c "bin/sql-client.sh" # one in stack
-docker compose exec -it sql-client bash # for terminal
-
-docker compose run sql-client # standalone
+docker compose up -d
 ```
-For running scripts see [Running SQL Scripts](#running-sql-scripts).
 
-## Kafka Tables
-This is the relational table behaviour side of the Kafka topic, the stream table duality concept. Creating a table that models the data within the Kafka topic.
+## Accessing the SQL Client
+For running Flink SQL commands there is a sql-client service running from the docker-compose.
 
-Topics should be created before the tables. This is closer to real-world behaviour where the creation of topics is usually governed and splits the infrastructure management concern from processing logic.
+```bash
+# Start running FLink SQL commands
+docker compose exec -it sql-client bash -c "bin/sql-client.sh" # from the compose
+```
+I will expand later on [running SQL Scripts](#running-sql-scripts).
 
-Running the SQL in the SQL client, **create a Kafka table** with:
+## Tables
+Flink is centered around the concept of tables, they discuss this at length in the [Flink docs](https://nightlies.apache.org/flink/flink-docs-release-1.20/docs/concepts/overview/). In our case we're going to use dynamic tables specifically, note Flink has support for batch workloads too. The dynamic tables we'll use represent the data within the underlying Kafka topics. This concept of stream table duality comes up frequently, where the data is being looked at as a stream, or a table. Let's get started.
+
+Topics should be created before tables. This is closer to real-world behavior where the creation of topics is usually governed and splits the infrastructure management concern from the processing logic.
+
+Create the topic items in the UI that is running locally on [localhost:8080](http://localhost:8080), you'll need to create a local user to start. Alternatively use the CLI:
+
+```bash
+docker compose exec kafka1 /bin/kafka-topics --create --topic items --bootstrap-server kafka1:9092,kafka2:9092,kafka3:9092 --partitions 3 --replication-factor 2
+
+```
+
+Running the below SQL in the SQL client, **create a dynamic table** with:
 ```sql
---DDL for Flink table, a Kafka table
+--DDL for Flink dynmaic table
 CREATE TABLE items(
   id BIGINT,
   price DECIMAL(10, 2),
@@ -76,11 +86,11 @@ CREATE TABLE items(
 --   'sink.partitioner' = 'fixed' -- Fixed will send to same partition, for demo purposes only
 );
 ```
-There are more properties described in documentation, [the Flink docs](https://nightlies.apache.org/flink/flink-docs-master/docs/connectors/table/formats/avro-confluent/) were particularly useful for schema registry properties. Table properties can also be updated later on, see the [Flink docs](https://nightlies.apache.org/flink/flink-table-store-docs-release-0.3/docs/how-to/altering-tables/) for altering tables and example below.
+These properties are specific to this `connector` type, I've also left some commented out to show what else you may consider in a non-dev environment. The [Flink docs](https://nightlies.apache.org/flink/flink-docs-master/docs/connectors/table/formats/avro-confluent/) were particularly useful for schema registry properties. Table properties can also be updated later on.
 
 `ALTER TABLE items SET ('properties.group.id'='flink_table_items');`
 
-Some useful commands for interrogating tables in Flink were: `SHOW tables;` , `DESCRIBE items;` and `SHOW CREATE TABLE items;` for more info. Note lowercase works.
+Some useful commands for interrogating tables in Flink were: `SHOW tables;` , `DESCRIBE items;` and `SHOW CREATE TABLE items;` for more info. Note lowercase works. The full properties list for altering tables is, you guessed it, on the [Flink docs](https://nightlies.apache.org/flink/flink-table-store-docs-release-0.3/docs/how-to/altering-tables/).
 
 When building your processing queries you have to explicitly say which timestamps may be processing time, this can be added with:
 ```sql
@@ -102,7 +112,10 @@ VALUES (
 ```
 Appears on the topic.
 
-Note if this fails on the Kafka side the message is lost, as the INSERT job completed, but Kafka failed, to have retries you need to insert from a streaming table rather than fire and forget one valid command. Examples of streaming tables which will retry:
+Note if this fails on the Kafka side the message is lost, as the INSERT job completed, but Kafka failed, to have retries you need to insert from a streaming table rather than fire and forget one valid command. 
+
+You can see the issue for failed jobs in the job manager log list by searching for `FAILED`, or specifically the job exception list as it throws an exception, it's a nice jump to the failure. Note this doesn't throw an **error** as it fails gracefully. Example I had was forgetting to make the topic beforehand.
+Examples of streaming tables which will retry:
 
 ```sql
 -- One-time but with retries
@@ -112,6 +125,7 @@ WHERE id = 1;  -- Or any specific condition
 ```
 
 You can also source items being from a filesystem table. Note this will include the header, I believe there are functions in the Java, Scala and Python libraries to ignore but not in the [connector config](https://nightlies.apache.org/flink/flink-docs-release-1.16/docs/connectors/table/formats/csv/).
+
 ```sql
 -- with the Kafka table already created (items in this example) 
 
@@ -136,7 +150,25 @@ INSERT INTO items
 SELECT *
   FROM items_from_file;
 ```
-A note on failures. You can see the issue for failed jobs in the job manager log list by searching for `FAILED`, or specifically the job exception list as it throws an exception, it's a nice jump to the failure. Note this doesn't throw an **error** as it fails gracefully. Example I had was forgetting to make the topic beforehand.
+
+Additionally the data-gen connector is particularly useful when you want a table with data in it.
+```sql
+CREATE TABLE `pageviews` (
+  `url` STRING,
+  `user_id` STRING,
+  `browser` STRING,
+  `ts` TIMESTAMP(3)
+)
+WITH (
+  'connector' = 'faker',
+  'rows-per-second' = '10', -- can edit with, ALTER TABLE `pageviews` SET ('rows-per-second' = '10');
+  'fields.url.expression' = '/#{GreekPhilosopher.name}.html',
+  'fields.user_id.expression' = '#{numerify ''user_##''}',
+  'fields.browser.expression' = '#{Options.option ''chrome'', ''firefox'', ''safari'')}',
+  'fields.ts.expression' =  '#{date.past ''5'',''1'',''SECONDS''}'
+);
+```
+
 
 ## Running SQL scripts
 You're likely to want to make things more repeatable, more scriptable or make a mistake/encounter an error and need to look back at commands. Running SQL scripts is useful here.  
@@ -179,12 +211,12 @@ ALTER TABLE items ADD proc_time AS PROCTIME();
 SELECT *
 FROM TABLE(
     TUMBLE(
-        TABLE all_items, 
+        TABLE items, 
         DESCRIPTOR(proc_time), 
         INTERVAL '10' MINUTES
     )
 )
-ORDER by window_time, id;
+ORDER by window_time, price;
 ```
 See [view-ordered-windowed.sql](./flink/confluent-course-examples-and-data/data/view-ordered-window.sql) for this with view created too.
 
@@ -195,7 +227,7 @@ The config is for the local stack you can spin-up here, just create the topic.
 Make a table for the topic `item_added`.
 
 ```sql
--- ksqlDB
+-- ksqlDB syntax
 CREATE STREAM item_added (
   cart_id BIGINT key,
   item_id BIGINT
@@ -205,10 +237,11 @@ CREATE STREAM item_added (
   PARTITIONS = 6
 );
 
--- flink
+-- flink translation
 CREATE TABLE item_added (
   cart_id BIGINT,
-  item_id BIGINT
+  item_id BIGINT,
+  proc_time AS PROCTIME()
 ) WITH (
   'connector' = 'kafka',
   'topic' = 'item_added',
@@ -253,9 +286,9 @@ SQL_CONTAINER=/opt/flink/opt/scripts/target-script.sql
 docker cp $SQL_HOST sql-client:$SQL_CONTAINER
 docker compose exec sql-client /opt/flink/bin/sql-client.sh -f $SQL_CONTAINER
 ```
-1. Create these four topics needed on Kafka, the three additional source topics and a sink topic for enriched stream [brands, tax_status, unenriched_items, enriched_items]. Use your preferred method or the Conduktor UI running on [localhost:8080](http:localhost:8080) if you're running the stack
+1. Create the four topics needed on Kafka. Which are the three additional source topics and a sink topic for enriched stream [brands, tax_status, unenriched_items, enriched_items]. Use your preferred method or the Conduktor UI running on [localhost:8080](http:localhost:8080) if you're running the stack
 1. Populate the brand, tax_status and unenriched_items topics with [add-split-stream-data.sql](./flink/confluent-course-examples-and-data/data/enriching-streams/add-split-stream-data.sql)
-1.  Then run [enriched-stream-setup.sql](.flink/confluent-course-examples-and-data/data/enriching-streams/enriched-stream-setup.sql) to create the four tables in Flink
+1.  Then run [enriched-stream-setup.sql](.flink/confluent-course-examples-and-data/data/enriching-streams/enriched-stream-setup.sql) to view the joined table in Flink
 
 Adding more messages to the topics would cause the view to update. What is more useful perhaps is writing to the topic using `INSERT INTO`. We can then view from the new topic instead.
 
@@ -277,7 +310,7 @@ Stop any duplicate jobs with:
 
 ```sql
 SHOW JOBS;  -- to see all running jobs and their IDs
-STOP JOB '<job_id>';  -- to stop a specific job
+STOP JOB '<job_id>';  -- to stop a specific job, ID enclosed in quotes
 ```
 The job ID can be inspected using Flink Job Manager UI running on [localhost:8081](http://localhost:8081).
 
@@ -287,12 +320,12 @@ Example of multi-event streams. Will build a shopping cart state from deltas of 
 We'll
 1. Create item added stream
 1. Create item removed stream
-1. Add items to the streams
+1. Add records to the streams
 1. Setup a continuous job to merge the streams and enrich with if the item was added, or removed
 1. Create a view to see the live result
 
 Creating the item added stream - create the topics `item_added`, `item_removed`, `merged_cart_actions`.
-Create the tables and insert mock data using [add-remote-items-cart.sql](./flink/confluent-course-examples-and-data/data/building-state-from-deltas/add-remove-items-cart.sql).
+Create the tables and insert mock data using [add-remove-items-cart.sql](./flink/confluent-course-examples-and-data/data/building-state-from-deltas/add-remove-items-cart.sql).
 
 ```bash
 docker compose exec sql-client bash -c "mkdir -p /opt/flink/opt/scripts/"
